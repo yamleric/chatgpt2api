@@ -973,8 +973,12 @@ func (a *App) handleLogs(w http.ResponseWriter, r *http.Request) {
 		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if query.View == "" {
+		query.View = a.config.DefaultLogView()
+	}
+	query.View = service.NormalizeLogView(query.View, a.config.DefaultLogView())
 	items := a.logs.Search(query)
-	util.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items), "page_size": normalizedHTTPLogPageSize(query.Limit)})
+	util.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items), "page_size": normalizedHTTPLogPageSize(query.Limit), "view": query.View})
 }
 
 func (a *App) handleLogGovernance(w http.ResponseWriter, r *http.Request) {

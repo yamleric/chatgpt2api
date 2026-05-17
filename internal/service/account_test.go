@@ -777,6 +777,61 @@ func TestApplyAccountErrorMessageIgnoresBootstrapFailures(t *testing.T) {
 	}
 }
 
+func TestStartLimitedWatcherSkipsAccountBeforeRestoreTime(t *testing.T) {
+	var mu sync.Mutex
+	meCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/backend-api/me" {
+			mu.Lock()
+			meCalls++
+			mu.Unlock()
+		}
+		switch r.URL.Path {
+		case "/":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/backend-api/me":
+			writeJSON(t, w, map[string]any{"email": "user@example.com", "id": "user-1"})
+		case "/backend-api/conversation/init":
+			writeJSON(t, w, map[string]any{
+				"default_model_slug": "gpt-5",
+				"limits_progress": []map[string]any{{
+					"feature_name": "image_gen",
+					"remaining":    0,
+					"reset_after":  time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
+				}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	accounts := newTestAccountService(t)
+	accounts.remoteBaseURL = server.URL
+	accounts.browserHTTPClient = func(string, time.Duration) *http.Client {
+		return server.Client()
+	}
+	accounts.AddAccounts([]string{"token-1"})
+	accounts.UpdateAccount("token-1", map[string]any{
+		"status":     "限流",
+		"quota":      0,
+		"restore_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	accounts.StartLimitedWatcher(ctx, 20*time.Millisecond)
+	time.Sleep(80 * time.Millisecond)
+
+	mu.Lock()
+	got := meCalls
+	mu.Unlock()
+	if got != 0 {
+		t.Fatalf("limited watcher refreshed account before restore time: /backend-api/me calls = %d, want 0", got)
+	}
+}
+
 func TestSummarizeRefreshErrorBodyPrefersJSONMessage(t *testing.T) {
 	got := summarizeRefreshErrorBody([]byte(`{"error":{"message":"You've reached the image generation limit"}}`))
 	if got != "body=You've reached the image generation limit" {

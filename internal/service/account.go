@@ -154,6 +154,24 @@ func (s *AccountService) ListLimitedTokens() []string {
 	return out
 }
 
+func (s *AccountService) listRefreshableLimitedTokens(now time.Time) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []string
+	for _, item := range s.items {
+		if item["status"] != "限流" {
+			continue
+		}
+		if restoreAt, ok := parseAccountRestoreAt(item["restore_at"]); ok && restoreAt.After(now) {
+			continue
+		}
+		if token := util.Clean(item["access_token"]); token != "" {
+			out = append(out, token)
+		}
+	}
+	return out
+}
+
 func (s *AccountService) AddAccounts(tokens []string) map[string]any {
 	cleaned := cleanTokens(tokens)
 	if len(cleaned) == 0 {
@@ -1188,7 +1206,7 @@ func (s *AccountService) StartLimitedWatcher(ctx context.Context, interval time.
 			case <-ctx.Done():
 				return
 			case <-timer.C:
-				tokens := s.ListLimitedTokens()
+				tokens := s.listRefreshableLimitedTokens(time.Now())
 				if len(tokens) > 0 {
 					s.RefreshAccounts(ctx, tokens)
 				}
@@ -1711,6 +1729,19 @@ func extractQuotaAndRestoreAt(limits []any) (int, any, bool) {
 		return util.ToInt(item["remaining"], 0), restore, false
 	}
 	return 0, nil, true
+}
+
+func parseAccountRestoreAt(value any) (time.Time, bool) {
+	text := util.Clean(value)
+	if text == "" {
+		return time.Time{}, false
+	}
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05"} {
+		if parsed, err := time.Parse(layout, text); err == nil {
+			return parsed, true
+		}
+	}
+	return time.Time{}, false
 }
 
 func anyList(value any) []any {

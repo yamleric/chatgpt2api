@@ -19,6 +19,7 @@ func TestStoreUpdatePersistsRuntimeSettings(t *testing.T) {
 	unsetEnv(t, "CHATGPT2API_IMAGE_RETENTION_DAYS")
 	unsetEnv(t, "CHATGPT2API_IMAGE_STORAGE_LIMIT_MB")
 	unsetEnv(t, "CHATGPT2API_LOG_RETENTION_DAYS")
+	unsetEnv(t, "CHATGPT2API_DEFAULT_LOG_VIEW")
 	unsetEnv(t, "CHATGPT2API_AUTO_REMOVE_INVALID_ACCOUNTS")
 	unsetEnv(t, "CHATGPT2API_AUTO_REMOVE_RATE_LIMITED_ACCOUNTS")
 	unsetEnv(t, "CHATGPT2API_REGISTRATION_ENABLED")
@@ -41,6 +42,7 @@ func TestStoreUpdatePersistsRuntimeSettings(t *testing.T) {
 		"image_retention_days":            14,
 		"image_storage_limit_mb":          512,
 		"log_retention_days":              21,
+		"default_log_view":                "business",
 		"registration_enabled":            true,
 		"log_levels":                      []any{"debug", "error"},
 	})
@@ -50,6 +52,10 @@ func TestStoreUpdatePersistsRuntimeSettings(t *testing.T) {
 	if store.BaseURL() != "https://example.test/root" {
 		t.Fatalf("BaseURL() = %q", store.BaseURL())
 	}
+	if store.DefaultLogView() != "business" {
+		t.Fatalf("DefaultLogView() = %q, want business", store.DefaultLogView())
+	}
+	assertConfigValue(t, got, "default_log_view", "business")
 	assertConfigValue(t, got, "registration_enabled", true)
 	if _, ok := got["image_concurrent_limit"]; ok {
 		t.Fatalf("removed image_concurrent_limit leaked in config response: %#v", got)
@@ -70,6 +76,7 @@ func TestStoreUpdatePersistsRuntimeSettings(t *testing.T) {
 		"CHATGPT2API_IMAGE_RETENTION_DAYS=14",
 		"CHATGPT2API_IMAGE_STORAGE_LIMIT_MB=512",
 		"CHATGPT2API_LOG_RETENTION_DAYS=21",
+		"CHATGPT2API_DEFAULT_LOG_VIEW=business",
 		"CHATGPT2API_REGISTRATION_ENABLED=true",
 		"CHATGPT2API_LOG_LEVELS=debug,error",
 	} {

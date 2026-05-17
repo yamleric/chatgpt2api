@@ -121,6 +121,7 @@ export function supportsImageOutputCompression(format: ImageOutputFormat) {
 
 export type AuthRole = "admin" | "user";
 export type AnnouncementTarget = "login" | "image";
+export type LogView = "all" | "meaningful" | "business";
 
 export type PermissionMenu = {
   id: string;
@@ -232,6 +233,7 @@ export type SettingsConfig = {
   image_retention_days?: number | string;
   image_storage_limit_mb?: number | string;
   log_retention_days?: number | string;
+  default_log_view?: LogView | string;
   auto_remove_invalid_accounts?: boolean;
   auto_remove_rate_limited_accounts?: boolean;
   log_levels?: string[];
@@ -318,6 +320,7 @@ export type SystemLogFilters = {
   ip_address?: string;
   operation_type?: string;
   log_level?: string;
+  view?: LogView | string;
   start_date?: string;
   end_date?: string;
   start_time?: string;
@@ -1165,12 +1168,12 @@ export async function deleteManagedImages(paths: string[]) {
 export async function fetchSystemLogs(filters: SystemLogFilters) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
-    if (value === undefined || value === null || value === "" || value === "all") {
+    if (value === undefined || value === null || value === "" || (key !== "view" && value === "all")) {
       continue;
     }
     params.set(key, String(value));
   }
-  return httpRequest<{ items: SystemLog[] }>(`/api/logs${params.toString() ? `?${params.toString()}` : ""}`);
+  return httpRequest<{ items: SystemLog[]; view?: LogView | string }>(`/api/logs${params.toString() ? `?${params.toString()}` : ""}`);
 }
 
 export async function fetchLogGovernance() {

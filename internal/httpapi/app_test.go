@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -477,6 +478,49 @@ func TestCreationTaskFailureWritesCallLog(t *testing.T) {
 	}
 	if detail["key_name"] != "frontend" || detail["key_role"] != "user" {
 		t.Fatalf("call log did not include user key identity: %#v", detail)
+	}
+}
+
+func TestLogsEndpointUsesDefaultLogView(t *testing.T) {
+	app := newTestApp(t)
+	defer app.Close()
+	if _, err := app.config.Update(map[string]any{"default_log_view": "business"}); err != nil {
+		t.Fatalf("Update(default_log_view) error = %v", err)
+	}
+	if err := app.logs.Add("新增账号", map[string]any{"module": "accounts", "operation_type": "新增"}); err != nil {
+		t.Fatalf("Add(business log) error = %v", err)
+	}
+	if err := app.logs.Add("GET /api/profile", map[string]any{"method": "GET", "path": "/api/profile", "module": "profile", "status": 200, "log_level": "info"}); err != nil {
+		t.Fatalf("Add(noisy audit log) error = %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/logs", nil)
+	req.Header.Set("Authorization", adminAuthHeader(t, app))
+	res := httptest.NewRecorder()
+	app.Handler().ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("logs status = %d body = %s", res.Code, res.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("logs json: %v", err)
+	}
+	if summaries := logPayloadSummaries(logItems(payload)); !reflect.DeepEqual(summaries, []string{"新增账号"}) {
+		t.Fatalf("default logs summaries = %#v", summaries)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/logs?view=all", nil)
+	req.Header.Set("Authorization", adminAuthHeader(t, app))
+	res = httptest.NewRecorder()
+	app.Handler().ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("logs all status = %d body = %s", res.Code, res.Body.String())
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("logs all json: %v", err)
+	}
+	if summaries := logPayloadSummaries(logItems(payload)); !reflect.DeepEqual(summaries, []string{"GET /api/profile", "新增账号"}) {
+		t.Fatalf("all logs summaries = %#v", summaries)
 	}
 }
 
@@ -3529,7 +3573,7 @@ func TestAPIAuditLogCapturesRequestMetadata(t *testing.T) {
 		t.Fatalf("settings status = %d body = %s", res.Code, res.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/logs?username=admin&method=GET&status=200&summary=%2Fapi%2Fsettings", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/logs?username=admin&method=GET&status=200&summary=%2Fapi%2Fsettings&view=all", nil)
 	req.Header.Set("Authorization", adminAuthHeader(t, app))
 	res = httptest.NewRecorder()
 	app.Handler().ServeHTTP(res, req)
@@ -3594,7 +3638,7 @@ func TestCreationTaskSubmitLogsRequestAndPollingAvoidsGenericAuditNoise(t *testi
 		t.Fatalf("poll creation task status = %d body = %s", res.Code, res.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/logs", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/logs?view=all", nil)
 	req.Header.Set("Authorization", adminAuthHeader(t, app))
 	res = httptest.NewRecorder()
 	app.Handler().ServeHTTP(res, req)
@@ -3780,6 +3824,14 @@ func TestImageStorageGovernanceEndpointCleansThumbnails(t *testing.T) {
 	}
 }
 
+func logPayloadSummaries(items []map[string]any) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, util.Clean(item["summary"]))
+	}
+	return out
+}
+
 func logItems(payload map[string]any) []map[string]any {
 	rawItems, _ := payload["items"].([]any)
 	items := make([]map[string]any, 0, len(rawItems))
@@ -3910,6 +3962,7 @@ func newTestAppWithBillingDefaults(t *testing.T, billingType, standardBalance, s
 	t.Setenv("CHATGPT2API_DEFAULT_SUBSCRIPTION_QUOTA", subscriptionQuota)
 	t.Setenv("CHATGPT2API_DEFAULT_SUBSCRIPTION_PERIOD", subscriptionPeriod)
 	unsetTestEnv(t, "CHATGPT2API_REGISTRATION_ENABLED")
+	unsetTestEnv(t, "CHATGPT2API_DEFAULT_LOG_VIEW")
 	t.Setenv("STORAGE_BACKEND", "sqlite")
 	t.Setenv("DATABASE_URL", "")
 	app, err := NewApp()
