@@ -1352,6 +1352,27 @@ func NormalizeMessages(messages any, system any) []map[string]any {
 	return normalized
 }
 
+func TokenCountMessages(messages any, system any) []map[string]any {
+	var out []map[string]any
+	if text := MessageText(system); text != "" {
+		out = append(out, map[string]any{"role": "system", "content": text})
+	}
+	if list, ok := messages.([]map[string]any); ok {
+		for _, message := range list {
+			out = append(out, map[string]any{"role": firstNonEmpty(util.Clean(message["role"]), "user"), "content": message["content"]})
+		}
+		return out
+	}
+	if list, ok := messages.([]any); ok {
+		for _, raw := range list {
+			if message, ok := raw.(map[string]any); ok {
+				out = append(out, map[string]any{"role": firstNonEmpty(util.Clean(message["role"]), "user"), "content": message["content"]})
+			}
+		}
+	}
+	return out
+}
+
 func AssistantHistoryText(messages []map[string]any) string {
 	var parts []string
 	for _, item := range messages {
@@ -1449,11 +1470,24 @@ func buildResponsesImagePrompt(prompt, size, model string) string {
 	return BuildImagePrompt(prompt, size, "")
 }
 
+const (
+	imageLowDetailTokens     = 85
+	imageTileTokens          = 170
+	imageUnknownDetailTokens = 765
+	imageTokenTileSize       = 512
+	imageTokenMaxDimension   = 2048
+	imageTokenShortDimension = 768
+)
+
 func CountMessageTokens(messages []map[string]any, model string) int {
 	total := 3
 	for _, message := range messages {
 		total += 3
 		for key, value := range message {
+			if key == "content" {
+				total += CountContentTokens(value, model)
+				continue
+			}
 			if text, ok := value.(string); ok {
 				total += CountTextTokens(text, model)
 				if key == "name" {
@@ -1463,6 +1497,116 @@ func CountMessageTokens(messages []map[string]any, model string) int {
 		}
 	}
 	return total
+}
+
+func CountContentTokens(content any, model string) int {
+	switch v := content.(type) {
+	case string:
+		return CountTextTokens(v, model)
+	case []any:
+		total := 0
+		for _, part := range v {
+			total += CountContentPartTokens(part, model)
+		}
+		return total
+	case []map[string]any:
+		total := 0
+		for _, part := range v {
+			total += CountContentPartTokens(part, model)
+		}
+		return total
+	default:
+		return 0
+	}
+}
+
+func CountContentPartTokens(part any, model string) int {
+	m := util.StringMap(part)
+	if len(m) == 0 {
+		return 0
+	}
+	switch strings.ToLower(strings.TrimSpace(util.Clean(m["type"]))) {
+	case "text", "input_text":
+		return CountTextTokens(util.Clean(m["text"]), model)
+	case "image_url", "input_image":
+		return CountImagePartTokens(m)
+	default:
+		return 0
+	}
+}
+
+func CountImagePartTokens(part any) int {
+	urlValue, detail := imagePartURLAndDetail(part)
+	if strings.EqualFold(strings.TrimSpace(detail), "low") {
+		return imageLowDetailTokens
+	}
+	if width, height, ok := imageDimensionsFromDataURL(urlValue); ok {
+		return estimateImageTokensFromDimensions(width, height)
+	}
+	return imageUnknownDetailTokens
+}
+
+func imagePartURLAndDetail(part any) (string, string) {
+	m := util.StringMap(part)
+	if len(m) == 0 {
+		return "", ""
+	}
+	for _, key := range []string{"image_url", "input_image"} {
+		value := m[key]
+		if nested := util.StringMap(value); len(nested) > 0 {
+			return firstNonEmpty(util.Clean(nested["url"]), util.Clean(nested["image_url"])), firstNonEmpty(util.Clean(nested["detail"]), util.Clean(m["detail"]))
+		}
+		if text := util.Clean(value); text != "" {
+			return text, util.Clean(m["detail"])
+		}
+	}
+	return firstNonEmpty(util.Clean(m["url"]), util.Clean(m["image_url"])), util.Clean(m["detail"])
+}
+
+func imageDimensionsFromDataURL(value string) (int, int, bool) {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(strings.ToLower(value), "data:image/") {
+		return 0, 0, false
+	}
+	header, dataPart, ok := strings.Cut(value, ",")
+	if !ok || !strings.Contains(strings.ToLower(header), ";base64") {
+		return 0, 0, false
+	}
+	data, err := base64.StdEncoding.DecodeString(strings.TrimSpace(dataPart))
+	if err != nil {
+		return 0, 0, false
+	}
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil || config.Width <= 0 || config.Height <= 0 {
+		return 0, 0, false
+	}
+	return config.Width, config.Height, true
+}
+
+func estimateImageTokensFromDimensions(width, height int) int {
+	if width <= 0 || height <= 0 {
+		return imageUnknownDetailTokens
+	}
+	maxDimension := max(width, height)
+	if maxDimension > imageTokenMaxDimension {
+		width = ceilDiv(width*imageTokenMaxDimension, maxDimension)
+		height = ceilDiv(height*imageTokenMaxDimension, maxDimension)
+	}
+	shortDimension := min(width, height)
+	if shortDimension > imageTokenShortDimension {
+		width = ceilDiv(width*imageTokenShortDimension, shortDimension)
+		height = ceilDiv(height*imageTokenShortDimension, shortDimension)
+	}
+	tilesWide := ceilDiv(width, imageTokenTileSize)
+	tilesHigh := ceilDiv(height, imageTokenTileSize)
+	return imageLowDetailTokens + imageTileTokens*tilesWide*tilesHigh
+}
+
+func ceilDiv(value, divisor int) int {
+	if divisor <= 0 {
+		return 0
+	}
+	return (value + divisor - 1) / divisor
 }
 
 func CountTextTokens(text, model string) int {

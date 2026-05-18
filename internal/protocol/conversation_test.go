@@ -47,6 +47,223 @@ func (c testProtocolImageConfig) BaseURL() string {
 	return "https://example.test"
 }
 
+func testPNGDataURL(t *testing.T, width, height int) string {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	img.Set(0, 0, color.RGBA{R: 255, A: 255})
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("png.Encode() error = %v", err)
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+}
+
+func TestCountMessageTokensCountsTextContentParts(t *testing.T) {
+	messages := []map[string]any{{
+		"role": "user",
+		"content": []any{
+			map[string]any{"type": "text", "text": "look"},
+			map[string]any{"type": "text", "text": "again"},
+		},
+	}}
+
+	got := CountMessageTokens(messages, "gpt-5")
+	want := 3 + 3 + CountTextTokens("user", "gpt-5") + CountTextTokens("look", "gpt-5") + CountTextTokens("again", "gpt-5")
+	if got != want {
+		t.Fatalf("CountMessageTokens() = %d, want %d", got, want)
+	}
+}
+
+func TestCountMessageTokensCountsImageURLLowDetail(t *testing.T) {
+	messages := []map[string]any{{
+		"role": "user",
+		"content": []any{
+			map[string]any{"type": "text", "text": "look"},
+			map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.test/image.png", "detail": "low"}},
+		},
+	}}
+
+	got := CountMessageTokens(messages, "gpt-5")
+	base := 3 + 3 + CountTextTokens("user", "gpt-5") + CountTextTokens("look", "gpt-5")
+	want := base + 85
+	if got != want {
+		t.Fatalf("CountMessageTokens() = %d, want %d", got, want)
+	}
+}
+
+func TestCountMessageTokensImageURLTopLevelDetailFallback(t *testing.T) {
+	messages := []map[string]any{{
+		"role": "user",
+		"content": []any{
+			map[string]any{"type": "image_url", "detail": "low", "image_url": map[string]any{"url": "https://example.test/image.png"}},
+		},
+	}}
+
+	got := CountMessageTokens(messages, "gpt-5")
+	base := 3 + 3 + CountTextTokens("user", "gpt-5")
+	want := base + 85
+	if got != want {
+		t.Fatalf("CountMessageTokens() = %d, want %d", got, want)
+	}
+}
+
+func TestCountMessageTokensCountsImageURLDataURLDimensions(t *testing.T) {
+	messages := []map[string]any{{
+		"role": "user",
+		"content": []any{
+			map[string]any{"type": "text", "text": "look"},
+			map[string]any{"type": "image_url", "image_url": map[string]any{"url": testPNGDataURL(t, 1, 1), "detail": "high"}},
+		},
+	}}
+
+	got := CountMessageTokens(messages, "gpt-5")
+	base := 3 + 3 + CountTextTokens("user", "gpt-5") + CountTextTokens("look", "gpt-5")
+	want := base + 255
+	if got != want {
+		t.Fatalf("CountMessageTokens() = %d, want %d", got, want)
+	}
+}
+
+func TestCompletionResponseIncludesImagePromptTokens(t *testing.T) {
+	messages := []map[string]any{{
+		"role": "user",
+		"content": []any{
+			map[string]any{"type": "text", "text": "look"},
+			map[string]any{"type": "image_url", "image_url": map[string]any{"url": testPNGDataURL(t, 1, 1), "detail": "high"}},
+		},
+	}}
+
+	response := CompletionResponse("gpt-5", "ok", 123, messages)
+	usage := response["usage"].(map[string]any)
+	promptTokens := usage["prompt_tokens"].(int)
+	completionTokens := usage["completion_tokens"].(int)
+	totalTokens := usage["total_tokens"].(int)
+
+	wantPrompt := CountMessageTokens(messages, "gpt-5")
+	wantCompletion := CountTextTokens("ok", "gpt-5")
+	if promptTokens != wantPrompt {
+		t.Fatalf("prompt_tokens = %d, want %d", promptTokens, wantPrompt)
+	}
+	if completionTokens != wantCompletion {
+		t.Fatalf("completion_tokens = %d, want %d", completionTokens, wantCompletion)
+	}
+	if totalTokens != wantPrompt+wantCompletion {
+		t.Fatalf("total_tokens = %d, want %d", totalTokens, wantPrompt+wantCompletion)
+	}
+}
+
+func TestTokenCountMessagesPreservesContentPartsAndPrependsToolPrompt(t *testing.T) {
+	body := map[string]any{
+		"messages": []any{map[string]any{"content": []any{
+			map[string]any{"type": "text", "text": "look"},
+			map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.test/image.png", "detail": "low"}},
+		}}},
+		"tools": []any{map[string]any{"type": "function", "function": map[string]any{"name": "read_file"}}},
+	}
+
+	messages := TokenCountMessages(body["messages"], ChatToolPrompt(body))
+	if len(messages) != 2 {
+		t.Fatalf("TokenCountMessages() len = %d, want 2: %#v", len(messages), messages)
+	}
+	if messages[0]["role"] != "system" || !strings.Contains(messages[0]["content"].(string), "Tool: read_file") {
+		t.Fatalf("system tool prompt not prepended: %#v", messages[0])
+	}
+	if messages[1]["role"] != "user" {
+		t.Fatalf("default role = %#v, want user", messages[1]["role"])
+	}
+	parts, ok := messages[1]["content"].([]any)
+	if !ok || len(parts) != 2 {
+		t.Fatalf("content parts were not preserved: %#v", messages[1]["content"])
+	}
+	imagePart, ok := parts[1].(map[string]any)
+	if !ok || imagePart["type"] != "image_url" {
+		t.Fatalf("image_url part was not preserved: %#v", parts[1])
+	}
+
+	normalized := NormalizeMessages(body["messages"], ChatToolPrompt(body))
+	if normalized[1]["content"] != "look" {
+		t.Fatalf("NormalizeMessages() content = %#v, want text-only look", normalized[1]["content"])
+	}
+}
+
+func TestCompletionResponseIncludesImagePromptTokensWithTokenCountMessages(t *testing.T) {
+	body := map[string]any{
+		"model": "gpt-5",
+		"messages": []any{map[string]any{"role": "user", "content": []any{
+			map[string]any{"type": "text", "text": "look"},
+			map[string]any{"type": "image_url", "image_url": map[string]any{"url": testPNGDataURL(t, 1, 1), "detail": "high"}},
+		}}},
+		"tools": []any{map[string]any{"type": "function", "function": map[string]any{"name": "read_file"}}},
+	}
+	rawMessages, err := ChatMessagesFromBody(body)
+	if err != nil {
+		t.Fatalf("ChatMessagesFromBody() error = %v", err)
+	}
+	usageMessages := TokenCountMessages(rawMessages, ChatToolPrompt(body))
+	normalizedMessages := NormalizeMessages(rawMessages, ChatToolPrompt(body))
+
+	response, err := CompletionResponseWithTools("gpt-5", "ok", 123, usageMessages, body["tools"], body["tool_choice"])
+	if err != nil {
+		t.Fatalf("CompletionResponseWithTools() error = %v", err)
+	}
+	usage := response["usage"].(map[string]any)
+	promptTokens := usage["prompt_tokens"].(int)
+	wantPrompt := CountMessageTokens(usageMessages, "gpt-5")
+	if promptTokens != wantPrompt {
+		t.Fatalf("prompt_tokens = %d, want %d", promptTokens, wantPrompt)
+	}
+	if promptTokens <= CountMessageTokens(normalizedMessages, "gpt-5") {
+		t.Fatalf("prompt_tokens = %d, want greater than normalized text-only count", promptTokens)
+	}
+}
+
+func TestCountMessageTokensCountsHighDetailDataURLAfterShortSideScaling(t *testing.T) {
+	messages := []map[string]any{{
+		"role": "user",
+		"content": []any{
+			map[string]any{"type": "image_url", "image_url": map[string]any{"url": testPNGDataURL(t, 2048, 2048), "detail": "high"}},
+		},
+	}}
+
+	got := CountMessageTokens(messages, "gpt-5")
+	base := 3 + 3 + CountTextTokens("user", "gpt-5")
+	want := base + 765
+	if got != want {
+		t.Fatalf("CountMessageTokens() = %d, want %d", got, want)
+	}
+}
+
+func TestCountMessageTokensImageURLFallbackDoesNotFetchRemote(t *testing.T) {
+	messages := []map[string]any{{
+		"role": "user",
+		"content": []any{
+			map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://127.0.0.1:1/not-fetched.png"}},
+		},
+	}}
+
+	got := CountMessageTokens(messages, "gpt-5")
+	base := 3 + 3 + CountTextTokens("user", "gpt-5")
+	want := base + 765
+	if got != want {
+		t.Fatalf("CountMessageTokens() = %d, want %d", got, want)
+	}
+}
+
+func TestCountMessageTokensIgnoresUnknownContentParts(t *testing.T) {
+	messages := []map[string]any{{
+		"role": "user",
+		"content": []any{
+			map[string]any{"type": "file", "file": map[string]any{"file_id": "file_123", "size": 1024}},
+		},
+	}}
+
+	got := CountMessageTokens(messages, "gpt-5")
+	want := 3 + 3 + CountTextTokens("user", "gpt-5")
+	if got != want {
+		t.Fatalf("CountMessageTokens() = %d, want %d", got, want)
+	}
+}
+
 func TestFormatImageResultStoresOwnerName(t *testing.T) {
 	config := testProtocolImageConfig{root: t.TempDir()}
 	engine := &Engine{Config: config}

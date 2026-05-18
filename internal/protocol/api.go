@@ -614,7 +614,11 @@ func (e *Engine) VisionChatResponse(ctx context.Context, body map[string]any, mo
 	if err != nil {
 		return nil, err
 	}
-	return CompletionResponseWithTools(model, text, 0, messages, body["tools"], body["tool_choice"])
+	usageMessages := TokenCountMessages(util.AsMapSlice(body["messages"]), ChatToolPrompt(body))
+	if len(usageMessages) == 0 {
+		usageMessages = messages
+	}
+	return CompletionResponseWithTools(model, text, 0, usageMessages, body["tools"], body["tool_choice"])
 }
 
 func ChatMessagesFromBody(body map[string]any) ([]map[string]any, error) {
