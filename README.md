@@ -72,6 +72,7 @@
 - Anthropic Messages 风格入口：`POST /v1/messages`。
 - 异步创作任务资源：`/api/creation-tasks`。
 - 支持 `gpt-image-2`、`codex-gpt-image-2`、`auto` 和多个 `gpt-5*` 文本/图片场景模型选项。
+- 支持中转站 Relay 模式：启用后图像生成/编辑请求转发到 OpenAI 兼容中转站，无需本地账号池和代理。
 
 ### 账号池与导入
 
@@ -358,6 +359,33 @@ CHATGPT2API_LINUXDO_FRONTEND_REDIRECT_URL=/auth/linuxdo/callback
 - Linuxdo Connect 应用后台应填写后端回调地址：`/auth/linuxdo/oauth/callback`。
 - `CHATGPT2API_LINUXDO_FRONTEND_REDIRECT_URL` 是前端接收本地会话的路由，不要填到 Linuxdo Connect 应用后台。
 - 如果未显式设置 `CHATGPT2API_LINUXDO_REDIRECT_URL`，且已配置 `CHATGPT2API_BASE_URL`，后端会自动推导回调地址。
+
+### 中转站 Relay
+
+中转站模式是可选能力。启用后，图像生成和图片编辑请求将转发到 OpenAI 兼容的中转站，不再使用本地账号池和 ChatGPT 逆向协议。适用于国内服务器无法直连 ChatGPT 但可以访问中转站的场景。
+
+```env
+CHATGPT2API_RELAY_ENABLED=true
+CHATGPT2API_RELAY_BASE_URL=https://your-relay.example.com
+CHATGPT2API_RELAY_API_KEY=sk-xxxxxxxx
+CHATGPT2API_RELAY_MODEL=gpt-image-2
+CHATGPT2API_RELAY_TIMEOUT_SECONDS=300
+```
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `CHATGPT2API_RELAY_ENABLED` | `false` | 是否启用中转站模式 |
+| `CHATGPT2API_RELAY_BASE_URL` | 空 | 中转站地址，不含尾部斜杠 |
+| `CHATGPT2API_RELAY_API_KEY` | 空 | 中转站 API Key |
+| `CHATGPT2API_RELAY_MODEL` | 空 | 强制使用的模型名称；留空时根据前端传入的模型自动映射 |
+| `CHATGPT2API_RELAY_TIMEOUT_SECONDS` | `300` | 中转站请求超时，单位秒，范围 10–600 |
+
+说明：
+
+- 中转站需兼容 OpenAI 图片接口格式：`POST /v1/images/generations`（JSON）和 `POST /v1/images/edits`（multipart/form-data），返回 `{created, data: [{b64_json}]}` 格式。
+- 启用中转站后，账号池、CPA、Sub2API 等导入源代码保留但不参与请求路由。
+- 任务调度、图库保存、缩略图生成、计费扣减、并发控制等功能在中转站模式下仍然正常工作。
+- 以上配置也可以在管理端设置页的"中转站配置"卡片中动态修改，保存后立即生效，无需重启容器。
 
 ## 本地开发
 

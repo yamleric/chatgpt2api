@@ -247,6 +247,12 @@ export type SettingsConfig = {
   login_page_image_zoom?: number | string;
   login_page_image_position_x?: number | string;
   login_page_image_position_y?: number | string;
+  relay_enabled?: boolean;
+  relay_base_url?: string;
+  relay_api_key?: string;
+  relay_api_key_configured?: boolean;
+  relay_model?: string;
+  relay_timeout_seconds?: number | string;
   [key: string]: unknown;
 };
 

@@ -97,6 +97,12 @@ function normalizeConfig(config: SettingsConfig): SettingsConfig {
     login_page_image_zoom: loginImageTransform.zoom,
     login_page_image_position_x: loginImageTransform.positionX,
     login_page_image_position_y: loginImageTransform.positionY,
+    relay_enabled: Boolean(config.relay_enabled),
+    relay_base_url: typeof config.relay_base_url === "string" ? config.relay_base_url : "",
+    relay_api_key: "",
+    relay_api_key_configured: Boolean(config.relay_api_key_configured),
+    relay_model: typeof config.relay_model === "string" ? config.relay_model : "",
+    relay_timeout_seconds: Math.max(10, Math.min(600, Number(config.relay_timeout_seconds) || 300)),
   };
 }
 
@@ -183,6 +189,11 @@ type SettingsStore = {
   setLinuxDoFrontendRedirectUrl: (value: string) => void;
   setUpdateRepo: (value: string) => void;
   setUpdateGitHubToken: (value: string) => void;
+  setRelayEnabled: (value: boolean) => void;
+  setRelayBaseUrl: (value: string) => void;
+  setRelayApiKey: (value: string) => void;
+  setRelayModel: (value: string) => void;
+  setRelayTimeoutSeconds: (value: string) => void;
   setLoginPageImageUrl: (value: string) => void;
   setLoginPageImageMode: (value: LoginPageImageMode) => void;
   setLoginPageImageTransform: (transform: { zoom: number; positionX: number; positionY: number }) => void;
@@ -300,6 +311,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       const linuxDoClientSecret = String(config.linuxdo_client_secret || "").trim();
       const updateGitHubToken = String(config.update_github_token || "").trim();
+      const relayApiKey = String(config.relay_api_key || "").trim();
       const payload: SettingsConfig = {
         ...config,
         refresh_account_interval_minute: Math.max(1, Number(config.refresh_account_interval_minute) || 1),
@@ -325,6 +337,11 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         linuxdo_frontend_redirect_url: String(config.linuxdo_frontend_redirect_url || "").trim(),
         update_repo: String(config.update_repo ?? "ZyphrZero/chatgpt2api").trim(),
         update_github_token: updateGitHubToken,
+        relay_enabled: Boolean(config.relay_enabled),
+        relay_base_url: String(config.relay_base_url || "").trim().replace(/\/+$/, ""),
+        relay_api_key: relayApiKey,
+        relay_model: String(config.relay_model || "").trim(),
+        relay_timeout_seconds: Math.min(600, Math.max(10, Number(config.relay_timeout_seconds) || 300)),
       };
       if (!linuxDoClientSecret) {
         delete payload.linuxdo_client_secret;
@@ -332,8 +349,12 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       if (!updateGitHubToken) {
         delete payload.update_github_token;
       }
+      if (!relayApiKey) {
+        delete payload.relay_api_key;
+      }
       delete payload.linuxdo_client_secret_configured;
       delete payload.update_github_token_configured;
+      delete payload.relay_api_key_configured;
 
       const data = await updateSettingsConfig(payload);
       set({
@@ -477,6 +498,26 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   setUpdateGitHubToken: (value) => {
     set((state) => state.config ? { config: { ...state.config, update_github_token: value } } : {});
+  },
+
+  setRelayEnabled: (value) => {
+    set((state) => state.config ? { config: { ...state.config, relay_enabled: value } } : {});
+  },
+
+  setRelayBaseUrl: (value) => {
+    set((state) => state.config ? { config: { ...state.config, relay_base_url: value } } : {});
+  },
+
+  setRelayApiKey: (value) => {
+    set((state) => state.config ? { config: { ...state.config, relay_api_key: value } } : {});
+  },
+
+  setRelayModel: (value) => {
+    set((state) => state.config ? { config: { ...state.config, relay_model: value } } : {});
+  },
+
+  setRelayTimeoutSeconds: (value) => {
+    set((state) => state.config ? { config: { ...state.config, relay_timeout_seconds: value } } : {});
   },
 
   setLoginPageImageUrl: (value) => {

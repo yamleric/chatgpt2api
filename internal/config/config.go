@@ -48,6 +48,11 @@ var settingEnvKeys = map[string]string{
 	"login_page_image_zoom":             "CHATGPT2API_LOGIN_PAGE_IMAGE_ZOOM",
 	"login_page_image_position_x":       "CHATGPT2API_LOGIN_PAGE_IMAGE_POSITION_X",
 	"login_page_image_position_y":       "CHATGPT2API_LOGIN_PAGE_IMAGE_POSITION_Y",
+	"relay_enabled":                     "CHATGPT2API_RELAY_ENABLED",
+	"relay_base_url":                    "CHATGPT2API_RELAY_BASE_URL",
+	"relay_api_key":                     "CHATGPT2API_RELAY_API_KEY",
+	"relay_model":                       "CHATGPT2API_RELAY_MODEL",
+	"relay_timeout_seconds":             "CHATGPT2API_RELAY_TIMEOUT_SECONDS",
 }
 
 var envKeyRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -415,6 +420,33 @@ func (s *Store) LoginPageImagePositionY() float64 {
 	return clampFloat(floatSetting(s.settingValue("login_page_image_position_y", 50), 50), 0, 100)
 }
 
+func (s *Store) RelayEnabled() bool {
+	return util.ToBool(s.settingValue("relay_enabled", false))
+}
+
+func (s *Store) RelayBaseURL() string {
+	return util.Clean(util.ValueOr(s.settingValue("relay_base_url", ""), ""))
+}
+
+func (s *Store) RelayAPIKey() string {
+	return util.Clean(util.ValueOr(s.settingValue("relay_api_key", ""), ""))
+}
+
+func (s *Store) RelayModel() string {
+	return util.Clean(util.ValueOr(s.settingValue("relay_model", "gpt-image-2"), "gpt-image-2"))
+}
+
+func (s *Store) RelayTimeoutSeconds() int {
+	value := intSetting(s.settingValue("relay_timeout_seconds", 300), 300)
+	if value < 10 {
+		return 10
+	}
+	if value > 600 {
+		return 600
+	}
+	return value
+}
+
 func (s *Store) Get() map[string]any {
 	s.mu.RLock()
 	data := util.CopyMap(s.data)
@@ -450,8 +482,14 @@ func (s *Store) Get() map[string]any {
 	data["login_page_image_zoom"] = s.LoginPageImageZoom()
 	data["login_page_image_position_x"] = s.LoginPageImagePositionX()
 	data["login_page_image_position_y"] = s.LoginPageImagePositionY()
+	data["relay_enabled"] = s.RelayEnabled()
+	data["relay_base_url"] = s.RelayBaseURL()
+	data["relay_api_key_configured"] = s.RelayAPIKey() != ""
+	data["relay_model"] = s.RelayModel()
+	data["relay_timeout_seconds"] = s.RelayTimeoutSeconds()
 	delete(data, "linuxdo_client_secret")
 	delete(data, "update_github_token")
+	delete(data, "relay_api_key")
 	return data
 }
 
@@ -459,6 +497,12 @@ func (s *Store) Update(data map[string]any) (map[string]any, error) {
 	s.mu.Lock()
 	next := util.CopyMap(s.data)
 	for key, value := range data {
+		if key == "relay_api_key_configured" {
+			continue
+		}
+		if key == "relay_api_key" && strings.TrimSpace(fmt.Sprint(value)) == "" {
+			continue
+		}
 		if key == "linuxdo_client_secret_configured" {
 			continue
 		}

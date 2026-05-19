@@ -36,11 +36,12 @@ type ImageConfig interface {
 }
 
 type Engine struct {
-	Accounts *service.AccountService
-	Config   ImageConfig
-	Storage  storage.JSONDocumentBackend
-	Proxy    *service.ProxyService
-	Logger   *service.Logger
+	Accounts    *service.AccountService
+	Config      ImageConfig
+	Storage     storage.JSONDocumentBackend
+	Proxy       *service.ProxyService
+	Logger      *service.Logger
+	RelayConfig RelayConfigProvider
 
 	ListModelsFunc         func(context.Context) (map[string]any, error)
 	StreamImageOutputsFunc func(context.Context, *backend.Client, ConversationRequest, int, int) (<-chan ImageOutput, <-chan error)
@@ -485,6 +486,9 @@ func IterConversationPayloads(ctx context.Context, payloads <-chan string, histo
 }
 
 func (e *Engine) StreamImageOutputsWithPool(ctx context.Context, request ConversationRequest) (<-chan ImageOutput, <-chan error) {
+	if e.RelayConfig != nil && e.RelayConfig.RelayEnabled() {
+		return e.StreamImageOutputsWithRelay(ctx, request)
+	}
 	request = request.Normalized()
 	out := make(chan ImageOutput)
 	errCh := make(chan error, 1)
