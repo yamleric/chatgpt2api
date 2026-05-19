@@ -189,6 +189,9 @@ export function ConfigCard() {
   const setRegistrationEnabled = useSettingsStore(
     (state) => state.setRegistrationEnabled,
   );
+  const setRegistrationLimit = useSettingsStore(
+    (state) => state.setRegistrationLimit,
+  );
   const saveConfig = useSettingsStore((state) => state.saveConfig);
   const defaultBillingType = config?.default_billing_type || "standard";
 
@@ -522,6 +525,21 @@ export function ConfigCard() {
               label="开放账号注册"
             />
           </div>
+          <Field className={configFieldClassName}>
+            <FieldLabel htmlFor="registration-limit">注册人数上限</FieldLabel>
+            <Input
+              id="registration-limit"
+              type="number"
+              min={0}
+              value={String(config?.registration_limit ?? 0)}
+              onChange={(e) => setRegistrationLimit(e.target.value)}
+              className={settingsInputClassName}
+              placeholder="0 表示不限制"
+            />
+            <p className="text-xs text-muted-foreground">
+              0 表示不限制注册人数
+            </p>
+          </Field>
         </section>
 
         <section className={configSectionClassName}>

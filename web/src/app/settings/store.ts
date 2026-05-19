@@ -82,6 +82,7 @@ function normalizeConfig(config: SettingsConfig): SettingsConfig {
     proxy: typeof config.proxy === "string" ? config.proxy : "",
     base_url: typeof config.base_url === "string" ? config.base_url : "",
     registration_enabled: Boolean(config.registration_enabled),
+    registration_limit: Math.max(0, Number(config.registration_limit) || 0),
     linuxdo_enabled: Boolean(config.linuxdo_enabled),
     linuxdo_client_id: typeof config.linuxdo_client_id === "string" ? config.linuxdo_client_id : "",
     linuxdo_client_secret: "",
@@ -183,6 +184,7 @@ type SettingsStore = {
   setProxy: (value: string) => void;
   setBaseUrl: (value: string) => void;
   setRegistrationEnabled: (value: boolean) => void;
+  setRegistrationLimit: (value: number | string) => void;
   setLinuxDoEnabled: (value: boolean) => void;
   setLinuxDoClientId: (value: string) => void;
   setLinuxDoClientSecret: (value: string) => void;
@@ -332,6 +334,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         proxy: config.proxy.trim(),
         base_url: String(config.base_url || "").trim(),
         registration_enabled: Boolean(config.registration_enabled),
+    registration_limit: Math.max(0, Number(config.registration_limit) || 0),
         linuxdo_enabled: Boolean(config.linuxdo_enabled),
         linuxdo_client_id: String(config.linuxdo_client_id || "").trim(),
         linuxdo_client_secret: linuxDoClientSecret,
@@ -473,6 +476,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   setRegistrationEnabled: (value) => {
     set((state) => state.config ? { config: { ...state.config, registration_enabled: value } } : {});
+  },
+
+  setRegistrationLimit: (value) => {
+    set((state) => state.config ? { config: { ...state.config, registration_limit: Number(value) || 0 } } : {});
   },
 
   setLinuxDoEnabled: (value) => {

@@ -450,6 +450,12 @@ func (a *App) handleAccountRegister(w http.ResponseWriter, r *http.Request) {
 		util.WriteError(w, http.StatusForbidden, "已关闭注册通道")
 		return
 	}
+	if limit := a.config.RegistrationLimit(); limit > 0 {
+		if len(a.auth.ListUsers()) >= limit {
+			util.WriteError(w, http.StatusForbidden, "注册人数已达上限")
+			return
+		}
+	}
 	body, err := readJSONMap(r)
 	if err != nil {
 		util.WriteError(w, http.StatusBadRequest, "invalid json body")

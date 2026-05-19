@@ -219,6 +219,7 @@ export type SettingsConfig = {
   proxy: string;
   base_url?: string;
   registration_enabled?: boolean;
+  registration_limit?: number | string;
   refresh_account_interval_minute?: number | string;
   image_task_timeout_seconds?: number | string;
   user_default_concurrent_limit?: number | string;
