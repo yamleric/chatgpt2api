@@ -26,6 +26,7 @@ export function authSessionFromLoginResponse(data: LoginResponse, key: string): 
     creationConcurrentLimit: data.creation_concurrent_limit,
     creationRpmLimit: data.creation_rpm_limit,
     billing: data.billing ?? null,
+    nsfwEnabled: data.nsfw_enabled === undefined ? true : Boolean(data.nsfw_enabled),
     menuPaths: data.menu_paths || [],
     apiPermissions: data.api_permissions || [],
     menus: data.menus || [],

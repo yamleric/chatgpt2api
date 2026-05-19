@@ -53,6 +53,7 @@ var settingEnvKeys = map[string]string{
 	"relay_api_key":                     "CHATGPT2API_RELAY_API_KEY",
 	"relay_model":                       "CHATGPT2API_RELAY_MODEL",
 	"relay_timeout_seconds":             "CHATGPT2API_RELAY_TIMEOUT_SECONDS",
+	"nsfw_enabled":                      "CHATGPT2API_NSFW_ENABLED",
 }
 
 var envKeyRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -447,6 +448,10 @@ func (s *Store) RelayTimeoutSeconds() int {
 	return value
 }
 
+func (s *Store) NSFWEnabled() bool {
+	return util.ToBool(s.settingValue("nsfw_enabled", true))
+}
+
 func (s *Store) Get() map[string]any {
 	s.mu.RLock()
 	data := util.CopyMap(s.data)
@@ -487,6 +492,7 @@ func (s *Store) Get() map[string]any {
 	data["relay_api_key_configured"] = s.RelayAPIKey() != ""
 	data["relay_model"] = s.RelayModel()
 	data["relay_timeout_seconds"] = s.RelayTimeoutSeconds()
+	data["nsfw_enabled"] = s.NSFWEnabled()
 	delete(data, "linuxdo_client_secret")
 	delete(data, "update_github_token")
 	delete(data, "relay_api_key")

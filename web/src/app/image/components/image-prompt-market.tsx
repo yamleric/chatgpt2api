@@ -42,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getCachedAuthSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 type PromptMarketModeFilter = "all" | BananaPromptMode;
@@ -164,6 +165,14 @@ export function ImagePromptMarket({ open, onOpenChange, onApplyPrompt }: ImagePr
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_COUNT);
   const [favoriteBusyIds, setFavoriteBusyIds] = useState<Set<string>>(() => new Set());
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  const nsfwEnabled = getCachedAuthSession()?.nsfwEnabled ?? true;
+
+  useEffect(() => {
+    if (!nsfwEnabled && nsfwFilter !== "safe") {
+      setNsfwFilter("safe");
+    }
+  }, [nsfwEnabled, nsfwFilter]);
 
   const updateFavoriteItems = (items: PromptFavorite[]) => {
     setFavoriteItems(Array.isArray(items) ? items : []);
@@ -516,8 +525,8 @@ export function ImagePromptMarket({ open, onOpenChange, onApplyPrompt }: ImagePr
         <SelectContent>
           <SelectGroup>
             <SelectItem value="safe">隐藏 NSFW</SelectItem>
-            <SelectItem value="include">包含 NSFW</SelectItem>
-            <SelectItem value="only">仅 NSFW</SelectItem>
+            {nsfwEnabled && <SelectItem value="include">包含 NSFW</SelectItem>}
+            {nsfwEnabled && <SelectItem value="only">仅 NSFW</SelectItem>}
           </SelectGroup>
         </SelectContent>
       </Select>

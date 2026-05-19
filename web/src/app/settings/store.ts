@@ -103,6 +103,7 @@ function normalizeConfig(config: SettingsConfig): SettingsConfig {
     relay_api_key_configured: Boolean(config.relay_api_key_configured),
     relay_model: typeof config.relay_model === "string" ? config.relay_model : "",
     relay_timeout_seconds: Math.max(10, Math.min(600, Number(config.relay_timeout_seconds) || 300)),
+    nsfw_enabled: config.nsfw_enabled === undefined ? true : Boolean(config.nsfw_enabled),
   };
 }
 
@@ -194,6 +195,7 @@ type SettingsStore = {
   setRelayApiKey: (value: string) => void;
   setRelayModel: (value: string) => void;
   setRelayTimeoutSeconds: (value: string) => void;
+  setNsfwEnabled: (value: boolean) => void;
   setLoginPageImageUrl: (value: string) => void;
   setLoginPageImageMode: (value: LoginPageImageMode) => void;
   setLoginPageImageTransform: (transform: { zoom: number; positionX: number; positionY: number }) => void;
@@ -342,6 +344,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         relay_api_key: relayApiKey,
         relay_model: String(config.relay_model || "").trim(),
         relay_timeout_seconds: Math.min(600, Math.max(10, Number(config.relay_timeout_seconds) || 300)),
+        nsfw_enabled: Boolean(config.nsfw_enabled ?? true),
       };
       if (!linuxDoClientSecret) {
         delete payload.linuxdo_client_secret;
@@ -518,6 +521,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   setRelayTimeoutSeconds: (value) => {
     set((state) => state.config ? { config: { ...state.config, relay_timeout_seconds: value } } : {});
+  },
+
+  setNsfwEnabled: (value) => {
+    set((state) => state.config ? { config: { ...state.config, nsfw_enabled: value } } : {});
   },
 
   setLoginPageImageUrl: (value) => {

@@ -490,6 +490,7 @@ func (a *App) writeLoginResponse(w http.ResponseWriter, identity service.Identit
 		"creation_concurrent_limit": a.identityCreationConcurrentLimit(identity),
 		"creation_rpm_limit":        a.identityCreationRPMLimit(identity),
 		"billing":                   a.identityBillingState(identity),
+		"nsfw_enabled":              a.config.NSFWEnabled(),
 		"menu_paths":                permissions.MenuPaths,
 		"api_permissions":           permissions.APIPermissions,
 		"menus":                     service.FilterMenuPermissions(permissions.MenuPaths),

@@ -14,6 +14,7 @@ import { ImportBrowserDialog } from "./components/import-browser-dialog";
 import { LinuxDoLoginCard } from "./components/linuxdo-login-card";
 import { LogGovernanceCard } from "./components/log-governance-card";
 import { LoginPageImageCard } from "./components/login-page-image-card";
+import { NsfwConfigCard } from "./components/nsfw-config-card";
 import { RelayConfigCard } from "./components/relay-config-card";
 import { SettingsHeader } from "./components/settings-header";
 import { Sub2APIConnections } from "./components/sub2api-connections";
@@ -74,6 +75,9 @@ function AdminSettingsPageContent({
         </SettingsMasonryItem>
         <SettingsMasonryItem>
           <RelayConfigCard />
+        </SettingsMasonryItem>
+        <SettingsMasonryItem>
+          <NsfwConfigCard />
         </SettingsMasonryItem>
         <SettingsMasonryItem>
           <LogGovernanceCard />

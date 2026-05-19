@@ -26,6 +26,7 @@ export type StoredAuthSession = {
   creationConcurrentLimit: number;
   creationRpmLimit: number;
   billing?: BillingState | null;
+  nsfwEnabled: boolean;
   menuPaths: string[];
   apiPermissions: string[];
   menus: AuthMenuItem[];
@@ -105,6 +106,7 @@ function normalizeSession(value: unknown, fallbackKey = ""): StoredAuthSession |
     creationConcurrentLimit,
     creationRpmLimit: Number.isFinite(creationRpmLimit) && creationRpmLimit > 0 ? creationRpmLimit : 0,
     billing: normalizeBillingState(candidate.billing),
+    nsfwEnabled: candidate.nsfwEnabled === undefined ? true : Boolean(candidate.nsfwEnabled),
     menuPaths: normalizeStringList(candidate.menuPaths),
     apiPermissions: normalizeStringList(candidate.apiPermissions),
     menus: normalizeMenus(candidate.menus),

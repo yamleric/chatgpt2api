@@ -253,6 +253,7 @@ export type SettingsConfig = {
   relay_api_key_configured?: boolean;
   relay_model?: string;
   relay_timeout_seconds?: number | string;
+  nsfw_enabled?: boolean;
   [key: string]: unknown;
 };
 
@@ -475,6 +476,7 @@ export type LoginResponse = {
   creation_concurrent_limit: number;
   creation_rpm_limit: number;
   billing?: BillingState | null;
+  nsfw_enabled?: boolean;
   menu_paths?: string[];
   api_permissions?: string[];
   menus?: PermissionMenu[];
