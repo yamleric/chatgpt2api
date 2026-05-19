@@ -280,3 +280,45 @@ ssh -i "$SSH_KEY" $SERVER "docker images chatgpt2api"
 - `.env` 文件包含 API 密钥和管理员密码，**绝不**提交到 Git
 - SSH 密钥文件权限应为 600
 - 部署完成后不要在服务器上留存 `.env` 的副本到 build 目录
+
+---
+
+## 发布 Release
+
+部署验证通过后，在 GitHub 上创建 Release 标记版本。
+
+> 注意：`gh release create` 需要 `workflow` scope，但当前 token 没有。
+> 使用 `gh api` 直接调 REST API 可以绕过此限制。
+
+### 发版命令
+
+```bash
+# 确定版本号（查看上一个版本）
+gh release list --limit 1
+
+# 创建 release（替换版本号和内容）
+gh api repos/yamleric/chatgpt2api/releases \
+  -f tag_name=v0.x.x \
+  -f target_commitish=main \
+  -f name="HiMo 0.x.x" \
+  -f body="## What's New
+
+- **功能1** — 描述
+- **功能2** — 描述
+
+## Deployment
+
+参考 DEPLOY-SOP.md 中的快速部署流程。" \
+  -F draft=false \
+  -F prerelease=false
+```
+
+### 查看自上次 release 以来的变更
+
+```bash
+# 获取上一个 tag
+LAST_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName')
+
+# 列出新增 commit
+git log $LAST_TAG..HEAD --oneline
+```
