@@ -10,11 +10,11 @@ import (
 	"time"
 )
 
-// SessionRefresher 使用 uTLS 调用 /api/auth/session 刷新 token
+// SessionRefresher refreshes tokens through /api/auth/session with a uTLS client.
 type SessionRefresher struct {
 	mu        sync.Mutex
-	inFlight  map[string]*refreshCall // key: access_token, 去重
-	semaphore chan struct{}           // 并发控制 (max 5 concurrent)
+	inFlight  map[string]*refreshCall // key: access_token, deduplicates refreshes
+	semaphore chan struct{}           // concurrency control (max 5 concurrent)
 	httpDo    func(req *http.Request) (*http.Response, error)
 }
 
@@ -58,8 +58,8 @@ func NewSessionRefresher(httpDo func(req *http.Request) (*http.Response, error))
 	}
 }
 
-// RefreshToken 使用 session_token 刷新 access_token
-// 如果同一 token 正在刷新中，等待并返回结果（去重）
+// RefreshToken refreshes access_token with session_token.
+// If the same token is already refreshing, it waits for the in-flight result.
 func (r *SessionRefresher) RefreshToken(ctx context.Context, accessToken, sessionToken string) (newAccessToken, newSessionToken, newExpires string, err error) {
 	result, err := r.RefreshSession(ctx, accessToken, sessionToken)
 	return result.AccessToken, result.SessionToken, result.Expires, err
@@ -70,7 +70,7 @@ func (r *SessionRefresher) RefreshSession(ctx context.Context, accessToken, sess
 		return SessionRefreshData{}, fmt.Errorf("session_token is empty")
 	}
 
-	// 去重：检查是否已有进行中的刷新
+	// Deduplicate in-flight refreshes for the same access token.
 	r.mu.Lock()
 	if call, ok := r.inFlight[accessToken]; ok {
 		r.mu.Unlock()
@@ -94,7 +94,7 @@ func (r *SessionRefresher) RefreshSession(ctx context.Context, accessToken, sess
 		return result.sessionData(), result.err
 	}
 
-	// 获取信号量
+	// Acquire the refresh concurrency slot.
 	select {
 	case r.semaphore <- struct{}{}:
 		defer func() { <-r.semaphore }()
@@ -102,7 +102,7 @@ func (r *SessionRefresher) RefreshSession(ctx context.Context, accessToken, sess
 		return finish(refreshResult{err: ctx.Err()})
 	}
 
-	// 执行刷新
+	// Execute the refresh request.
 	return finish(r.doRefresh(ctx, sessionToken))
 }
 
@@ -173,7 +173,7 @@ func (r *SessionRefresher) doRefresh(ctx context.Context, sessionToken string) r
 		return refreshResult{err: fmt.Errorf("session response missing accessToken")}
 	}
 
-	// 如果响应中没有新的 sessionToken，保留旧值
+	// Keep the previous sessionToken when the response omits a replacement.
 	newSessionToken := session.SessionToken
 	if newSessionToken == "" {
 		newSessionToken = sessionToken
@@ -191,7 +191,7 @@ func (r *SessionRefresher) doRefresh(ctx context.Context, sessionToken string) r
 	}
 }
 
-// IsRefreshing 返回指定 token 是否正在刷新中
+// IsRefreshing reports whether the given token is being refreshed.
 func (r *SessionRefresher) IsRefreshing(accessToken string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -199,8 +199,8 @@ func (r *SessionRefresher) IsRefreshing(accessToken string) bool {
 	return ok
 }
 
-// TryRefreshAsync 异步触发刷新（fire-and-forget），用于实时请求场景
-// 返回 true 表示已提交刷新任务
+// TryRefreshAsync triggers a fire-and-forget refresh for live request paths.
+// It returns true when a refresh has been submitted or is already in flight.
 func (r *SessionRefresher) TryRefreshAsync(accessToken, sessionToken string) bool {
 	if sessionToken == "" {
 		return false
@@ -208,7 +208,7 @@ func (r *SessionRefresher) TryRefreshAsync(accessToken, sessionToken string) boo
 	r.mu.Lock()
 	if _, ok := r.inFlight[accessToken]; ok {
 		r.mu.Unlock()
-		return true // 已在刷新中
+		return true // Already refreshing.
 	}
 	r.mu.Unlock()
 

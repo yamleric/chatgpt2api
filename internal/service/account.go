@@ -16,20 +16,20 @@ import (
 	"chatgpt2api/internal/util"
 )
 
-// 账号 map 字段说明（storage 层存储的 account 对象）
+// Account map fields stored by the storage layer.
 //
-//	access_token        - ChatGPT 访问令牌（JWT），必填，账号唯一标识
-//	session_token       - 会话令牌，用于自动刷新 access_token
-//	type                - 账号类型：Free / Plus / ProLite / Pro / Team
-//	status              - 账号状态：正常 / 异常 / 限流 / 禁用 / 过期待刷新 / 刷新中
-//	quota               - 剩余配额次数（整数）
-//	image_quota_unknown - 图片配额未知标记
-//	email               - 关联邮箱
-//	user_id             - 用户ID
-//	chatgpt_account_id  - ChatGPT 账号ID
-//	limits_progress     - 用量限制进度
-//	default_model_slug  - 默认模型标识
-//	restore_at          - 配额恢复时间
+//	access_token        - ChatGPT access token (JWT), required, unique account identifier
+//	session_token       - Session token used to refresh access_token automatically
+//	type                - Account type: Free / Plus / ProLite / Pro / Team
+//	status              - Account status: normal / invalid / limited / disabled / refresh pending / refreshing
+//	quota               - Remaining quota count
+//	image_quota_unknown - Whether the image quota is unknown
+//	email               - Linked email address
+//	user_id             - User ID
+//	chatgpt_account_id  - ChatGPT account ID
+//	limits_progress     - Usage limit progress
+//	default_model_slug  - Default model slug
+//	restore_at          - Quota restore time
 type AccountConfig interface {
 	AutoRemoveInvalidAccounts() bool
 	AutoRemoveRateLimitedAccounts() bool
@@ -74,7 +74,7 @@ func NewAccountService(backend storage.Backend, config AccountConfig, proxy *Pro
 		browserHTTPClient: browserHTTPClient,
 		textRequestCount:  map[string]int{},
 	}
-	// 初始化 SessionRefresher，使用 uTLS 客户端调用 /api/auth/session
+	// Initialize SessionRefresher with the uTLS client for /api/auth/session.
 	s.refresher = NewSessionRefresher(func(req *http.Request) (*http.Response, error) {
 		client := s.browserHTTPClient(defaultRemoteProfile, refreshTimeout)
 		if client == nil {
@@ -996,7 +996,7 @@ func (s *AccountService) ApplyAccountError(accessToken, event string, err error)
 }
 
 func (s *AccountService) ApplyAccountErrorMessage(accessToken, event, message string) (string, bool) {
-	// token 过期但可能可以刷新
+	// The token is expired but may still be refreshable.
 	if IsAccountTokenExpiredErrorMessage(message) {
 		account := s.GetAccount(accessToken)
 		sessionToken := ""
@@ -1004,7 +1004,8 @@ func (s *AccountService) ApplyAccountErrorMessage(accessToken, event, message st
 			sessionToken = util.Clean(account["session_token"])
 		}
 		if sessionToken != "" {
-			// 有 session_token，实时请求异步刷新；批量扫描由 RefreshAccounts 第二阶段串行刷新
+			// Accounts with session_token refresh asynchronously during live requests;
+			// batch scans refresh serially in the second RefreshAccounts phase.
 			status := "过期待刷新"
 			if event != "refresh_accounts" {
 				status = "刷新中"
@@ -1015,13 +1016,13 @@ func (s *AccountService) ApplyAccountErrorMessage(accessToken, event, message st
 			}
 			return "检测到token过期，已提交刷新任务", true
 		}
-		// 无 session_token，直接标记异常
+		// Accounts without session_token cannot be refreshed and become invalid.
 		if !s.RemoveInvalidToken(accessToken, event) {
 			s.UpdateAccount(accessToken, map[string]any{"status": "异常", "quota": 0, "image_quota_unknown": false})
 		}
 		return "检测到token过期且无法刷新", true
 	}
-	// token 被撤销/无效（不可刷新）
+	// Revoked or invalidated tokens cannot be refreshed.
 	if IsAccountInvalidErrorMessage(message) {
 		if !s.RemoveInvalidToken(accessToken, event) {
 			s.UpdateAccount(accessToken, map[string]any{"status": "异常", "quota": 0, "image_quota_unknown": false})
@@ -1035,7 +1036,7 @@ func (s *AccountService) ApplyAccountErrorMessage(accessToken, event, message st
 	return message, false
 }
 
-// RefreshAccountViaSession 刷新成功后更新账号数据
+// RefreshAccountViaSession updates account data after a successful session refresh.
 func (s *AccountService) RefreshAccountViaSession(accessToken, newAccessToken, newSessionToken, newExpires string) bool {
 	accessToken = util.Clean(accessToken)
 	newAccessToken = util.Clean(newAccessToken)
@@ -1491,10 +1492,11 @@ func IsAccountInvalidErrorMessage(message string) bool {
 		strings.Contains(text, "authentication token is expired")
 }
 
-// IsAccountTokenExpiredErrorMessage 专门检测"可刷新的 token 过期"场景。
-// 与 IsAccountInvalidErrorMessage 的区别：本函数不包含 token_invalidated / token_revoked /
-// invalidated oauth token 等不可刷新场景，仅精确匹配 token expired 相关消息。
-// 当本函数返回 true 且账户有 session_token 时，应触发刷新而不是直接标记异常。
+// IsAccountTokenExpiredErrorMessage detects refreshable token-expired errors.
+// Unlike IsAccountInvalidErrorMessage, it excludes non-refreshable cases such as
+// token_invalidated, token_revoked, and invalidated oauth token errors.
+// When this returns true and the account has session_token, refresh it instead of
+// marking the account invalid immediately.
 func IsAccountTokenExpiredErrorMessage(message string) bool {
 	text := strings.ToLower(strings.TrimSpace(message))
 	if text == "" || isBootstrapErrorMessage(text) {
