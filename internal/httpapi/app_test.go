@@ -3048,6 +3048,31 @@ func TestAdminUsersManageLinuxDoUsers(t *testing.T) {
 	}
 }
 
+func TestManagedUsersDefaultSortsByCreatedAtBeforePagination(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/users?page=1&page_size=2", nil)
+	query, err := parseManagedUsersQuery(req)
+	if err != nil {
+		t.Fatalf("parseManagedUsersQuery() error = %v", err)
+	}
+	if query.SortBy != "created_at" || query.SortOrder != "desc" {
+		t.Fatalf("default sort = %s %s, want created_at desc", query.SortBy, query.SortOrder)
+	}
+
+	items := []map[string]any{
+		{"id": "user_z", "created_at": "2026-01-01 10:00:00"},
+		{"id": "user_a", "created_at": "2026-01-03 10:00:00"},
+		{"id": "user_m", "created_at": "2026-01-02 10:00:00"},
+	}
+	sortManagedUsers(items, query)
+	start := (query.Page - 1) * query.PageSize
+	pageItems := items[start : start+query.PageSize]
+	got := []string{util.Clean(pageItems[0]["id"]), util.Clean(pageItems[1]["id"])}
+	want := []string{"user_a", "user_m"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("default page ids = %#v, want %#v; sorted items = %#v", got, want, items)
+	}
+}
+
 func TestAdminUsersListPaginationAndFilters(t *testing.T) {
 	app := newTestApp(t)
 	defer app.Close()
@@ -3064,12 +3089,20 @@ func TestAdminUsersListPaginationAndFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreatePasswordUser(enabled_two) error = %v", err)
 	}
+	defaultUsers := []map[string]any{enabledOne, disabledOne, enabledTwo}
+	sort.SliceStable(defaultUsers, func(i, j int) bool {
+		leftCreated := util.Clean(defaultUsers[i]["created_at"])
+		rightCreated := util.Clean(defaultUsers[j]["created_at"])
+		if leftCreated != rightCreated {
+			return leftCreated > rightCreated
+		}
+		return util.Clean(defaultUsers[i]["id"]) > util.Clean(defaultUsers[j]["id"])
+	})
 	expectedDefaultIDs := []string{
-		enabledOne["id"].(string),
-		disabledOne["id"].(string),
-		enabledTwo["id"].(string),
+		util.Clean(defaultUsers[0]["id"]),
+		util.Clean(defaultUsers[1]["id"]),
+		util.Clean(defaultUsers[2]["id"]),
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(expectedDefaultIDs)))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/admin/users?page=1&page_size=3", nil)
 	req.Header.Set("Authorization", adminAuthHeader(t, app))
@@ -3083,7 +3116,7 @@ func TestAdminUsersListPaginationAndFilters(t *testing.T) {
 		t.Fatalf("default sorted users json: %v", err)
 	}
 	items := logItems(payload)
-	if len(items) != len(expectedDefaultIDs) || payload["sort_by"] != "id" || payload["sort_order"] != "desc" {
+	if len(items) != len(expectedDefaultIDs) || payload["sort_by"] != "created_at" || payload["sort_order"] != "desc" {
 		t.Fatalf("default sorted metadata/items = %#v", payload)
 	}
 	for index, item := range items {

@@ -155,7 +155,7 @@ function normalizeBillingAdjustmentType(type: BillingType, value: string): Billi
 const accountUsernamePattern = /^[a-z0-9][a-z0-9_.-]{2,31}$/;
 const userPageSizeOptions = ["10", "20", "50", "100"];
 const billingAdjustmentHistoryLimit = 8;
-type UserSortField = "id" | "name" | "role_name" | "billing_available" | "call_count" | "last_used_at";
+type UserSortField = "id" | "name" | "role_name" | "billing_available" | "call_count" | "created_at" | "last_used_at";
 type UserSortOrder = "asc" | "desc";
 
 function defaultUserSortOrder(field: UserSortField): UserSortOrder {
@@ -479,7 +479,7 @@ function UsersContent() {
   const [searchText, setSearchText] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<UserSortField>("id");
+  const [sortBy, setSortBy] = useState<UserSortField>("created_at");
   const [sortOrder, setSortOrder] = useState<UserSortOrder>("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState("20");
@@ -1124,7 +1124,7 @@ function UsersContent() {
                   {sortableHead("role_name", "角色", "w-[180px]")}
                   {sortableHead("billing_available", "本地计费", "w-[170px]")}
                   {sortableHead("call_count", "近 14 日调用", "w-[280px]")}
-                  {sortableHead("last_used_at", "时间", "w-[170px]")}
+                  {sortableHead("created_at", "创建时间", "w-[170px]")}
                   <TableHead className="w-[180px] text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>

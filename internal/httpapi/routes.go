@@ -923,7 +923,7 @@ func managedUsersTotalPages(total, pageSize int) int {
 func parseManagedUsersSortBy(raw string) (string, error) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
-		return "id", nil
+		return "created_at", nil
 	}
 	switch value {
 	case "id", "name", "username", "provider", "enabled", "role_id", "role_name", "billing_available", "call_count", "quota_used", "failure_count", "created_at", "last_used_at", "updated_at":
