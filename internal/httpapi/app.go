@@ -505,6 +505,9 @@ func (a *App) writeLoginResponse(w http.ResponseWriter, identity service.Identit
 		"menu_paths":                permissions.MenuPaths,
 		"api_permissions":           permissions.APIPermissions,
 		"menus":                     service.FilterMenuPermissions(permissions.MenuPaths),
+		"features": map[string]any{
+			"relay_enabled": a.config.RelayEnabled(),
+		},
 	}
 	if token == "" {
 		delete(payload, "token")

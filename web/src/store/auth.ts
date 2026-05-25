@@ -30,6 +30,7 @@ export type StoredAuthSession = {
   menuPaths: string[];
   apiPermissions: string[];
   menus: AuthMenuItem[];
+  features?: { relay_enabled?: boolean };
 };
 
 export const AUTH_SESSION_STORAGE_KEY = "chatgpt2api_auth_session";
@@ -81,6 +82,16 @@ function normalizeMenus(value: unknown): AuthMenuItem[] {
   });
 }
 
+function normalizeFeatures(value: unknown): StoredAuthSession["features"] {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const candidate = value as Record<string, unknown>;
+  return {
+    relay_enabled: candidate.relay_enabled === true,
+  };
+}
+
 function normalizeSession(value: unknown, fallbackKey = ""): StoredAuthSession | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -110,6 +121,7 @@ function normalizeSession(value: unknown, fallbackKey = ""): StoredAuthSession |
     menuPaths: normalizeStringList(candidate.menuPaths),
     apiPermissions: normalizeStringList(candidate.apiPermissions),
     menus: normalizeMenus(candidate.menus),
+    features: normalizeFeatures(candidate.features),
   };
 }
 

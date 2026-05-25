@@ -30,10 +30,10 @@ import {
   type ColorTheme,
 } from "@/lib/theme";
 
-const navItems = [
+const navItems: (NavItem & { hideOnRelay?: boolean })[] = [
   { href: "/image", label: "创作台" },
-  { href: "/accounts", label: "号池管理" },
-  { href: "/register", label: "注册机" },
+  { href: "/accounts", label: "号池管理", hideOnRelay: true },
+  { href: "/register", label: "注册机", hideOnRelay: true },
   { href: "/image-manager", label: "图片库" },
   { href: "/users", label: "用户管理" },
   { href: "/rbac", label: "角色权限" },
@@ -376,7 +376,11 @@ export function TopNav() {
     return null;
   }
 
-  const visibleNavItems = navItems.filter((item) => canAccessPath(session, item.href));
+  const relayEnabled = session.features?.relay_enabled === true;
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.hideOnRelay && relayEnabled) return false;
+    return canAccessPath(session, item.href);
+  });
   const roleLabel = session.role === "admin" ? "管理员" : session.roleName || (session.provider === "linuxdo" ? "Linuxdo 用户" : "普通用户");
   const canAccessImageTasks = canAccessPath(session, "/image");
   const navToggleLabel = navCollapsed ? "展开导航栏" : "收起导航栏";

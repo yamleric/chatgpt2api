@@ -66,6 +66,17 @@ export function RelayConfigCard() {
       }
     >
       <div className="flex flex-col gap-5">
+        {enabled ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+            <p className="font-medium">启用中转站后，以下功能将自动隐藏：</p>
+            <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-xs">
+              <li>官方图片模型（auto、gpt-image-2）— 仅保留 Codex 链路</li>
+              <li>号池管理 — 中转站模式不使用本地账号池</li>
+              <li>注册机 — 中转站模式不需要本地注册账号</li>
+            </ul>
+          </div>
+        ) : null}
+
         <section className={sectionClassName}>
           <h3 className="truncate text-sm leading-6 font-semibold text-foreground">
             连接信息

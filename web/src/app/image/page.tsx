@@ -1202,7 +1202,12 @@ function ImagePageContent({ session }: { session: NonNullable<ReturnType<typeof 
   const editingDraftSizeIsHighResolution = Boolean(
     editingDraftStructuredParameters && editingDraftImageSize && isHighResolutionImageSize(editingDraftImageSize),
   );
-  const composerModelOptions = composerMode === "chat" ? CHAT_MODEL_OPTIONS : IMAGE_CREATION_MODEL_OPTIONS;
+  const relayEnabled = session.features?.relay_enabled === true;
+  const composerModelOptions = useMemo(() => {
+    const base = composerMode === "chat" ? CHAT_MODEL_OPTIONS : IMAGE_CREATION_MODEL_OPTIONS;
+    if (!relayEnabled) return base;
+    return base.filter((opt) => !usesOfficialImageRoute(opt.value as ImageModel));
+  }, [composerMode, relayEnabled]);
   const selectedConversation = useMemo(
     () => conversations.find((item) => item.id === selectedConversationId) ?? null,
     [conversations, selectedConversationId],
@@ -1481,9 +1486,14 @@ function ImagePageContent({ session }: { session: NonNullable<ReturnType<typeof 
     }
 
     if (!isImageCreationModel(imageModel)) {
-      setImageModel(DEFAULT_IMAGE_MODEL);
+      setImageModel(relayEnabled ? "codex-gpt-image-2" : DEFAULT_IMAGE_MODEL);
+      return;
     }
-  }, [composerMode, imageModel]);
+
+    if (relayEnabled && usesOfficialImageRoute(imageModel)) {
+      setImageModel("codex-gpt-image-2");
+    }
+  }, [composerMode, imageModel, relayEnabled]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -3061,7 +3071,7 @@ function ImagePageContent({ session }: { session: NonNullable<ReturnType<typeof 
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>
-                            {(editingTurnDraft.mode === "chat" ? CHAT_MODEL_OPTIONS : IMAGE_CREATION_MODEL_OPTIONS).map((option) => (
+                            {(editingTurnDraft.mode === "chat" ? CHAT_MODEL_OPTIONS : IMAGE_CREATION_MODEL_OPTIONS).filter((opt) => !relayEnabled || !usesOfficialImageRoute(opt.value as ImageModel)).map((option) => (
                               <SelectItem key={option.value} value={option.value}>
                                 {option.label}
                               </SelectItem>

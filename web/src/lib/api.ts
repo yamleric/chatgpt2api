@@ -493,6 +493,7 @@ export type LoginResponse = {
   menu_paths?: string[];
   api_permissions?: string[];
   menus?: PermissionMenu[];
+  features?: { relay_enabled?: boolean };
 };
 
 export type AuthProviders = {
