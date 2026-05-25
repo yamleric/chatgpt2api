@@ -1,8 +1,29 @@
-<h1 align="center">ChatGPT2API</h1>
+<h1 align="center">HiMo (ChatGPT2API Fork)</h1>
 
 <p align="center">
-  ChatGPT2API 是一个面向自托管场景的 ChatGPT 官网能力封装服务，提供 OpenAI 兼容图片 API、在线创作台、账号池调度、图片库、日志治理、RBAC 权限管理和 Docker 部署能力。
+  基于 <a href="https://github.com/ZyphrZero/chatgpt2api">ZyphrZero/chatgpt2api</a> 二次开发，品牌名 HiMo。提供 OpenAI 兼容图片 API、在线创作台、账号池调度和 Docker 部署能力。
 </p>
+
+## Fork 新增功能
+
+| 功能 | 说明 |
+|------|------|
+| **中转站模式** | 图片生成/编辑请求转发至任意 OpenAI 兼容中转站，国内服务器无需代理 |
+| **注册人数限制** | 管理员可设置最大注册用户数，达到上限拒绝新注册 |
+| **NSFW 开关** | Prompt Market 全局 NSFW 过滤，管理员可在设置页控制 |
+| **品牌定制** | 站点标题 HiMo，附带快速部署 SOP 文档 |
+
+### 中转站配置
+
+```bash
+CHATGPT2API_RELAY_ENABLED=true
+CHATGPT2API_RELAY_BASE_URL=https://your-relay.com/v1
+CHATGPT2API_RELAY_API_KEY=sk-xxx
+```
+
+启用后图片请求走中转站，保留任务调度、存储、计费、并发控制全链路。
+
+---
 
 > [!WARNING]
 > 本项目涉及对 ChatGPT 官网文本生成、图片生成、图片编辑等接口的逆向研究，仅供个人学习、技术研究与非商业性技术交流使用。
