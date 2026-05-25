@@ -923,7 +923,7 @@ func managedUsersTotalPages(total, pageSize int) int {
 func parseManagedUsersSortBy(raw string) (string, error) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
-		return "id", nil
+		return "created_at", nil
 	}
 	switch value {
 	case "id", "name", "username", "provider", "enabled", "role_id", "role_name", "billing_available", "call_count", "quota_used", "failure_count", "created_at", "last_used_at", "updated_at":
@@ -1146,6 +1146,25 @@ func (a *App) handleAccounts(w http.ResponseWriter, r *http.Request) {
 		util.WriteJSON(w, http.StatusOK, map[string]any{"items": a.accountItemsForIdentity(identity)})
 	case r.URL.Path == "/api/accounts/tokens" && r.Method == http.MethodGet:
 		util.WriteJSON(w, http.StatusOK, map[string]any{"tokens": a.accounts.ListTokens()})
+	case r.URL.Path == "/api/accounts/session" && r.Method == http.MethodPost:
+		body, err := readJSONMap(r)
+		if err != nil {
+			util.WriteError(w, http.StatusBadRequest, "invalid json body")
+			return
+		}
+		sessionJSON := util.Clean(body["session_json"])
+		if sessionJSON == "" {
+			util.WriteError(w, http.StatusBadRequest, "session_json is required")
+			return
+		}
+		result, err := a.accounts.AddAccountFromSession(sessionJSON)
+		if err != nil {
+			util.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		delete(result, "tokens")
+		a.redactAccountPayloadForIdentity(identity, result)
+		util.WriteJSON(w, http.StatusOK, result)
 	case r.URL.Path == "/api/accounts" && r.Method == http.MethodPost:
 		body, _ := readJSONMap(r)
 		tokens := util.AsStringSlice(body["tokens"])
@@ -1536,6 +1555,12 @@ func imageTaskRequestMetadata(body map[string]any) map[string]any {
 		if util.ToBool(body["share_reference_images"]) {
 			metadata["share_reference_images"] = true
 		}
+	}
+	if conversationID := util.Clean(body["frontend_conversation_id"]); conversationID != "" {
+		metadata["frontend_conversation_id"] = conversationID
+	}
+	if fallback := util.StringMap(body["fallback_reference_image"]); len(fallback) > 0 {
+		metadata["fallback_reference_image"] = fallback
 	}
 	return metadata
 }

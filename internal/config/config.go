@@ -34,6 +34,7 @@ var settingEnvKeys = map[string]string{
 	"auto_remove_invalid_accounts":      "CHATGPT2API_AUTO_REMOVE_INVALID_ACCOUNTS",
 	"auto_remove_rate_limited_accounts": "CHATGPT2API_AUTO_REMOVE_RATE_LIMITED_ACCOUNTS",
 	"log_retention_days":                "CHATGPT2API_LOG_RETENTION_DAYS",
+	"default_log_view":                  "CHATGPT2API_DEFAULT_LOG_VIEW",
 	"log_levels":                        "CHATGPT2API_LOG_LEVELS",
 	"linuxdo_enabled":                   "CHATGPT2API_LINUXDO_ENABLED",
 	"linuxdo_client_id":                 "CHATGPT2API_LINUXDO_CLIENT_ID",
@@ -227,6 +228,10 @@ func (s *Store) LogRetentionDays() int {
 		return 3650
 	}
 	return value
+}
+
+func (s *Store) DefaultLogView() string {
+	return normalizeDefaultLogView(s.settingValue("default_log_view", "meaningful"))
 }
 
 func (s *Store) ImageTaskTimeoutSeconds() int {
@@ -477,6 +482,7 @@ func (s *Store) Get() map[string]any {
 	data["image_retention_days"] = s.ImageRetentionDays()
 	data["image_storage_limit_mb"] = s.ImageStorageLimitMB()
 	data["log_retention_days"] = s.LogRetentionDays()
+	data["default_log_view"] = s.DefaultLogView()
 	data["auto_remove_invalid_accounts"] = s.AutoRemoveInvalidAccounts()
 	data["auto_remove_rate_limited_accounts"] = s.AutoRemoveRateLimitedAccounts()
 	data["log_levels"] = s.LogLevels()
@@ -548,6 +554,9 @@ func (s *Store) Update(data map[string]any) (map[string]any, error) {
 	}
 	if value, ok := next["default_subscription_period"]; ok {
 		next["default_subscription_period"] = normalizeDefaultSubscriptionPeriod(value)
+	}
+	if value, ok := next["default_log_view"]; ok {
+		next["default_log_view"] = normalizeDefaultLogView(value)
 	}
 	next["update_repo"] = normalizeUpdateRepo(util.ValueOr(next["update_repo"], "ZyphrZero/chatgpt2api"))
 	if err := s.validateSettingsUpdateLocked(next); err != nil {
@@ -664,6 +673,15 @@ func (s *Store) validateSettingsUpdateLocked(data map[string]any) error {
 		return errors.New("Linuxdo token auth method must be one of client_secret_post, client_secret_basic, none")
 	}
 	return nil
+}
+
+func normalizeDefaultLogView(value any) string {
+	switch strings.ToLower(strings.TrimSpace(fmt.Sprint(value))) {
+	case "all", "meaningful", "business":
+		return strings.ToLower(strings.TrimSpace(fmt.Sprint(value)))
+	default:
+		return "meaningful"
+	}
 }
 
 func normalizeUpdateRepo(value any) string {
