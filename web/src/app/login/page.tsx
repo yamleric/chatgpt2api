@@ -36,7 +36,7 @@ import { getDefaultRouteForSession } from "@/store/auth";
 
 const loginBackgroundClass =
   "bg-[#fff9fb] bg-[radial-gradient(rgba(20,86,240,0.12)_1px,transparent_1px),linear-gradient(145deg,#fff8fa_0%,#ffffff_48%,#f4f8ff_100%)] [background-position:0_0,center] [background-size:12px_12px,cover] dark:bg-[#090d16] dark:bg-[radial-gradient(rgba(96,165,250,0.16)_1px,transparent_1px),linear-gradient(145deg,#080b13_0%,#101827_52%,#070b12_100%)]";
-const githubUrl = "https://github.com/ZyphrZero/chatgpt2api";
+const githubUrl = "https://github.com/yamleric/chatgpt2api";
 const telegramUrl = "https://t.me/+YBR7t_CPOYBkYzU1";
 
 export default function LoginPage() {

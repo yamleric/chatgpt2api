@@ -235,7 +235,7 @@ function AccountMenu({
               Telegram
             </a>
             <a
-              href="https://github.com/ZyphrZero/chatgpt2api"
+              href="https://github.com/yamleric/chatgpt2api"
               target="_blank"
               rel="noreferrer"
               className="flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
